@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="id" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Spotify – Web Player</title>
+<style>
+/* Spotify encore design tokens, observed live on open.spotify.com */
+:root{
+  --background-base:#121212; --background-highlight:#1f1f1f; --background-press:#000;
+  --background-elevated-base:#181818; --background-elevated-highlight:#232323;
+  --background-tinted-base:#ffffff1a;
+  --text-base:#fff; --text-subdued:#b3b3b3; --text-bright-accent:#1ed760;
+  --text-negative:#f3727f;
+  --essential-base:#fff; --essential-subdued:#7c7c7c; --essential-bright-accent:#1ed760;
+  --decorative-subdued:#292929;
+  --left-sidebar-width:232px; --content-spacing:16px; --content-max-width:1955px;
+  --encore-button-radius:9999px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:var(--background-base);color:var(--text-base);
+  font-family:"CircularSp","CircularSpTitle","CircularSpArabic","CircularSpHebrew","CircularSpVietnamese",
+    "CircularCyrl",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:inherit;text-decoration:none}
+img{display:block;width:100%;height:100%;object-fit:cover}
+svg{width:16px;height:16px;fill:currentColor}
+input{font:inherit}
+
+/* ---- global 3-row grid: topbar / main / now-playing-bar ---- */
+.app{display:grid;height:100vh;
+  grid-template-columns:var(--left-sidebar-width) 1fr;
+  grid-template-rows:64px 1fr 88px;
+  grid-template-areas:"topbar topbar" "side main" "npb npb"}
+
+/* ---- top bar ---- */
+.topbar{grid-area:topbar;display:flex;align-items:center;gap:8px;padding:0 16px;
+  background:var(--background-base);border-bottom:1px solid rgba(255,255,255,.06);z-index:3}
+.topbar .nav-btn{display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;border-radius:8px;
+  color:var(--text-subdued);font-weight:700;font-size:14px}
+.topbar .nav-btn:hover{color:var(--text-base);background:var(--background-highlight)}
+.topbar .nav-btn.active{color:var(--text-base)}
+.topbar .search{flex:0 1 364px;display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;
+  border-radius:8px;background:var(--background-highlight);color:var(--text-subdued)}
+.topbar .search svg{flex:0 0 16px;fill:var(--essential-subdued)}
+.topbar .search input{flex:1;background:none;border:0;outline:0;color:var(--text-base);min-width:0}
+.topbar .spacer{flex:1}
+.topbar .icon-btn{width:48px;height:48px;border-radius:8px;color:var(--essential-subdued);display:grid;place-items:center}
+.topbar .icon-btn:hover{color:var(--essential-base);background:var(--background-highlight)}
+.topbar .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1ed760,#0d72ea);
+  display:grid;place-items:center;font-weight:800;font-size:13px;color:#000}
+
+/* ---- left sidebar ---- */
+.sidebar{grid-area:side;background:var(--background-base);overflow:hidden;display:flex;flex-direction:column;
+  border-right:1px solid rgba(255,255,255,.06)}
+.side-nav{padding:8px 12px}
+.side-link{display:flex;align-items:center;gap:16px;height:40px;padding:0 12px;border-radius:8px;
+  color:var(--text-subdued);font-weight:700;font-size:14px}
+.side-link:hover{color:var(--text-base);background:var(--background-highlight)}
+.side-link.active{color:var(--text-base)}
+.side-link svg{flex:0 0 24px;fill:currentColor}
+.side-lib{flex:1;overflow-y:auto;padding:8px 12px;min-height:0}
+.side-lib-head{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
+  color:var(--text-subdued);font-weight:700;font-size:14px}
+.side-lib-head:hover{color:var(--text-base)}
+.lib-list{display:flex;flex-direction:column;gap:2px;padding:4px 0 24px}
+.lib-item{display:flex;align-items:center;gap:12px;height:56px;padding:0 8px;border-radius:8px;cursor:pointer}
+.lib-item:hover{background:var(--background-highlight)}
+.lib-item .art{width:48px;height:48px;border-radius:4px;flex:0 0 48px;background:var(--decorative-subdued);overflow:hidden}
+.lib-item .meta{min-width:0}
+.lib-item .t{display:block;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-item .s{display:block;font-size:11px;color:var(--text-subdued);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- main scroll area ---- */
+.main{grid-area:main;overflow-y:auto;min-width:0;scroll-behavior:smooth}
+.main::-webkit-scrollbar,.side-lib::-webkit-scrollbar{width:12px}
+.main::-webkit-scrollbar-thumb,.side-lib::-webkit-scrollbar-thumb{background:#4d4d4d;border-radius:12px;
+  border:3px solid var(--background-base)}
+.hero{position:sticky;top:0;z-index:2;padding:8px 24px 16px;background:linear-gradient(#1f1f1f,#121212);
+  display:flex;align-items:flex-end;gap:24px;min-height:64px}
+.chips{display:flex;gap:8px;padding:0 24px 16px;flex-wrap:wrap;position:sticky;top:0;background:var(--background-base);z-index:1}
+.chip{height:32px;padding:0 12px;border-radius:16px;background:var(--background-elevated-highlight);
+  color:var(--text-base);font-size:13px;font-weight:500;display:grid;place-items:center}
+.chip.active{background:var(--text-base);color:#000}
+.content{padding:4px 24px 24px;max-width:var(--content-max-width)}
+
+/* ---- shelves & cards ---- */
+.shelf{margin-bottom:32px}
+.shelf-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:16px}
+.shelf-head h2{font-size:24px;font-weight:700;letter-spacing:-.04em;margin:0}
+.show-all{font-size:13px;font-weight:700;color:var(--text-subdued);letter-spacing:.04em}
+.show-all:hover{color:var(--text-base)}
+.shelf-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:var(--content-spacing)}
+.card{display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:8px;background:var(--background-elevated-base);
+  transition:background .2s;position:relative}
+.card:hover{background:var(--background-elevated-highlight)}
+.card-art{position:relative;width:100%;aspect-ratio:1;border-radius:4px;overflow:hidden;
+  background:var(--decorative-subdued);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.card-art .ph{width:100%;height:100%}
+.card-play{position:absolute;right:8px;bottom:8px;width:48px;height:48px;border-radius:50%;
+  background:var(--text-bright-accent);color:#000;display:grid;place-items:center;
+  opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;box-shadow:0 8px 16px rgba(0,0,0,.4)}
+.card-play svg{width:20px;height:20px}
+.card:hover .card-play{opacity:1;transform:none}
+.card-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.card-title{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-sub{font-size:14px;color:var(--text-subdued);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:block}
+
+/* ---- now playing bar ---- */
+.npb{grid-area:npb;display:grid;grid-template-columns:minmax(180px,1fr) 2fr minmax(180px,1fr);
+  align-items:center;background:#000;border-top:1px solid rgba(255,255,255,.08);padding:0 12px;min-height:88px}
+.npb-left{display:flex;align-items:center;gap:12px;min-width:0}
+.npb-left .art{width:56px;height:56px;border-radius:4px;flex:0 0 56px;background:var(--decorative-subdued);overflow:hidden}
+.npb-left .meta{min-width:0}
+.npb-left .t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npb-left .s{font-size:11px;color:var(--text-subdued);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npb-left .s a:hover{color:var(--text-base);text-decoration:underline}
+.npb-center{display:flex;flex-direction:column;align-items:center;gap:8px;max-width:722px;margin:0 auto;width:100%}
+.controls{display:flex;align-items:center;gap:16px}
+.ctrl{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--essential-subdued)}
+.ctrl:hover{color:var(--essential-base)}
+.ctrl.play{width:40px;height:40px;border-radius:50%;background:var(--essential-base);color:#000}
+.ctrl.play:hover{transform:scale(1.06)}
+.ctrl.play svg{width:16px;height:16px}
+.progress{display:flex;align-items:center;gap:8px;width:100%;font-size:11px;color:var(--text-subdued)}
+.progress .bar{flex:1;height:4px;border-radius:2px;background:#4d4d4d;position:relative;cursor:pointer}
+.progress .bar .fill{position:absolute;left:0;top:0;bottom:0;width:23%;border-radius:2px;background:var(--essential-base)}
+.progress .bar:hover .fill{background:var(--essential-bright-accent)}
+.npb-right{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.slider{width:96px;height:4px;border-radius:2px;background:#4d4d4d;position:relative;cursor:pointer}
+.slider .fill{position:absolute;left:0;top:0;bottom:0;width:65%;border-radius:2px;background:var(--essential-base)}
+.slider:hover .fill{background:var(--essential-bright-accent)}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr;grid-template-areas:"topbar" "main" "npb"}
+  .sidebar{display:none}
+  .npb{grid-template-columns:1fr auto}
+  .npb-right{display:none}
+  .shelf-cards{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <a class="topbar-logo" href="/" aria-label="Spotify" style="display:grid;place-items:center;width:48px;height:48px;color:var(--essential-base)">
+      <svg viewBox="0 0 24 24" style="width:32px;height:32px;fill:currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.42 1.56-.301.421-1.021.599-1.561.3z"/></svg>
+    </a>
+    <button class="nav-btn active" data-route="/">Home</button>
+    <button class="nav-btn" data-route="/search">Search</button>
+    <div class="search">
+      <svg viewBox="0 0 16 16"><path d="M7 1.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5zM.25 7a6.75 6.75 0 1 1 12.096 4.12l3.184 3.183a.75.75 0 1 1-1.06 1.061l-3.185-3.185A6.75 6.75 0 0 1 .25 7z"/></svg>
+      <input type="text" placeholder="What do you want to play?" aria-label="Search">
+    </div>
+    <div class="spacer"></div>
+    <button class="icon-btn" aria-label="What's New" title="What's New">
+      <svg viewBox="0 0 16 16"><path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0z"/><path d="M8 3.5a.75.75 0 0 1 .75.75v3.19l2.28 2.28a.75.75 0 1 1-1.06 1.06l-2.5-2.5A.75.75 0 0 1 7.25 7.5V4.25A.75.75 0 0 1 8 3.5z"/></svg>
+    </button>
+    <button class="icon-btn" aria-label="Install App" title="Install App">
+      <svg viewBox="0 0 16 16"><path d="M3.75 1.5a.75.75 0 0 0-.75.75v3a.75.75 0 0 0 1.5 0V4.81l5.72 5.72a.75.75 0 1 0 1.06-1.06L5.56 3.75h.44a.75.75 0 0 0 0-1.5h-2.25zM8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0z"/></svg>
+    </button>
+    <div class="avatar" title="Noir">N</div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <nav class="side-nav">
+      <a class="side-link active" href="/">
+        <svg viewBox="0 0 24 24"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h4.5v-6a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v6H20V7.577l-7.5-4.33zm-2-1.732a3 3 0 0 1 3 0l7.5 4.33a2 2 0 0 1 1 1.732V21a1 1 0 0 1-1 1h-6.5a1 1 0 0 1-1-1v-6h-3v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.577a2 2 0 0 1 1-1.732l7.5-4.33z"/></svg>
+        Home</a>
+      <a class="side-link" href="/search">
+        <svg viewBox="0 0 24 24"><path d="M10.533 1.279c-5.18 0-9.407 4.14-9.407 9.279s4.226 9.279 9.407 9.279c2.234 0 4.29-.77 5.907-2.058l4.353 4.353a1 1 0 1 0 1.414-1.414l-4.344-4.344a9.157 9.157 0 0 0 2.077-5.816c0-5.14-4.226-9.28-9.407-9.28zm-7.407 9.279c0-4.006 3.302-7.28 7.407-7.28s7.407 3.274 7.407 7.28-3.302 7.279-7.407 7.279-7.407-3.273-7.407-7.28z"/></svg>
+        Search</a>
+    </nav>
+    <div class="side-lib">
+      <div class="side-lib-head"><span>Your Library</span>
+        <button class="icon-btn" aria-label="Create" style="width:32px;height:32px">
+          <svg viewBox="0 0 16 16"><path d="M8 1.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 8 1.5z"/></svg>
+        </button>
+      </div>
+      <div class="lib-list" id="libList"></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="chips">
+      <button class="chip active">All</button>
+      <button class="chip">Music</button>
+      <button class="chip">Podcasts</button>
+      <button class="chip">Audiobooks</button>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+
+  <!-- NOW PLAYING BAR -->
+  <footer class="npb">
+    <div class="npb-left">
+      <div class="art" id="npArt"></div>
+      <div class="meta">
+        <span class="t" id="npTitle">SUPER EKSIS</span>
+        <span class="s"><a href="/artist/3x1vHC0kthfGxbY5w8AiRE">Naufal Syachreza</a></span>
+      </div>
+      <button class="icon-btn" aria-label="Add to playlist">
+        <svg viewBox="0 0 16 16"><path d="M8 1.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1.5h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1.5h5v-5A.75.75 0 0 1 8 1.5z"/></svg>
+      </button>
+    </div>
+    <div class="npb-center">
+      <div class="controls">
+        <button class="icon-btn" aria-label="Enable Smart Shuffle">
+          <svg viewBox="0 0 16 16"><path d="M13.151.892a.75.75 0 1 0-1.06 1.06L13.109 3H11.16a3.75 3.75 0 0 0-2.873 1.34l-6.173 7.356A2.25 2.25 0 0 1 .39 12.5H0V14h.391a3.75 3.75 0 0 0 2.873-1.34l6.173-7.356a2.25 2.25 0 0 1 1.725-.804h1.947l-1.017 1.018a.75.75 0 0 0 1.06 1.06l2.829-2.828L13.151.892zM.391 3.5H0V2h.391c1.109 0 2.16.49 2.873 1.34L4.89 5.277l-.979 1.167-1.796-2.14A2.25 2.25 0 0 0 .39 3.5z"/><path d="M7.5 10.723l.98-1.167.957 1.14a2.25 2.25 0 0 0 1.725.804h2.752l-1.017-1.018a.75.75 0 1 1 1.06-1.06l2.829 2.828-2.829 2.828a.75.75 0 1 1-1.06-1.06L13.109 13H11.16a3.75 3.75 0 0 1-2.873-1.34l-.787-.938z"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Previous">
+          <svg viewBox="0 0 16 16"><path d="M3.3 1a.7.7 0 0 1 .7.7v5.15l9.95-5.744a.7.7 0 0 1 1.05.606v12.575a.7.7 0 0 1-1.05.607L4 9.149V14.3a.7.7 0 0 1-.7.7H1.7a.7.7 0 0 1-.7-.7V1.7a.7.7 0 0 1 .7-.7h1.6z"/></svg>
+        </button>
+        <button class="ctrl play" id="playBtn" aria-label="Play">
+          <svg viewBox="0 0 16 16"><path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.288V1.713z"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Next">
+          <svg viewBox="0 0 16 16"><path d="M12.7 1a.7.7 0 0 0-.7.7v5.15L2.05 1.107a.7.7 0 0 0-1.05.606v12.575a.7.7 0 0 0 1.05.607L12 9.149V14.3a.7.7 0 0 0 .7.7h1.6a.7.7 0 0 0 .7-.7V1.7a.7.7 0 0 0-.7-.7h-1.6z"/></svg>
+        </button>
+        <button class="icon-btn" aria-label="Enable repeat">
+          <svg viewBox="0 0 16 16"><path d="M0 4.75A3.75 3.75 0 0 1 3.75 1h8.5a.75.75 0 0 1 0 1.5h-8.5a2.25 2.25 0 0 0-2.25 2.25v.085a.75.75 0 0 1-1.5 0V4.75zM13.5 6.665a.75.75 0 0 1 1.5 0v4.585A3.75 3.75 0 0 1 11.25 15h-8.5a.75.75 0 0 1 0-1.5h8.5a2.25 2.25 0 0 0 2.25-2.25V6.665z"/><path d="M4.47 3.97a.75.75 0 0 1 1.06 0L8.5 6.94l3.03-2.97a.75.75 0 1 1 1.05 1.07l-3.555 3.48a.75.75 0 0 1-1.05 0L4.47 5.03a.75.75 0 0 1 0-1.06zM11.53 13.03a.75.75 0 0 1-1.06 0L7.5 10.06l-3.03 2.97a.75.75 0 1 1-1.05-1.07l3.555-3.48a.75.75 0 0 1 1.05 0l3.465 3.52a.75.75 0 0 1 0 1.06z"/></svg>
+        </button>
+      </div>
+      <div class="progress">
+        <span id="cur">0:37</span>
+        <div class="bar" id="progBar"><div class="fill" id="progFill"></div></div>
+        <span id="dur">2:37</span>
+      </div>
+    </div>
+    <div class="npb-right">
+      <button class="icon-btn" aria-label="Lyrics"><svg viewBox="0 0 16 16"><path d="M13.426 2.574a2.831 2.831 0 0 0-4.797 1.55l3.247 3.247a2.831 2.831 0 0 0 1.55-4.797zM10.5 8.118l-2.619-2.62A63303.13 63303.13 0 0 0 4.74 9.075L2.065 12.38a1.287 1.287 0 0 0 1.816 1.816l3.305-2.677 3.314-3.401z"/></svg></button>
+      <button class="icon-btn" aria-label="Queue"><svg viewBox="0 0 16 16"><path d="M15 15H1v-1.5h14V15zm0-4.5H1V9h14v1.5zM14.121 1H1v1.5h12.121l-1.06 1.061L13.5 5 16 2.5 13.5 0l-1.439 1.439L14.121 1z"/></svg></button>
+      <button class="icon-btn" aria-label="Connect to a device"><svg viewBox="0 0 16 16"><path d="M6 2.75C6 1.784 6.784 1 7.75 1h6.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15h-6.5A1.75 1.75 0 0 1 6 13.25V2.75zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25h-6.5z"/><path d="M4.5 13.5H3v-9h1.5V3H3a1.5 1.5 0 0 0-1.5 1.5v9A1.5 1.5 0 0 0 3 15h1.5v-1.5z"/></svg></button>
+      <button class="icon-btn" aria-label="Mute"><svg viewBox="0 0 16 16"><path d="M9.741.85a.75.75 0 0 1 .375.65v13a.75.75 0 0 1-1.125.65l-6.925-4a3.642 3.642 0 0 1-1.33-4.967 3.539 3.539 0 0 1 1.33-1.332l6.925-4a.75.75 0 0 1 .75-.005zM3.975 4.342 9.116 7.3V2.57L3.975 4.342zm0 7.316L9.116 14.7V9.97l-5.141 2.688z"/></svg></button>
+      <div class="slider" id="volSlider"><div class="fill"></div></div>
+      <button class="icon-btn" aria-label="Open Miniplayer"><svg viewBox="0 0 16 16"><path d="M2 3.75A.75.75 0 0 1 2.75 3h10.5a.75.75 0 0 1 .75.75v8.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1-.75-.75v-8.5zm1.5.75v7h9v-7h-9z"/></svg></button>
+      <button class="icon-btn" aria-label="Enter Full screen"><svg viewBox="0 0 16 16"><path d="M3.75 1H1v2.75H0V0h3.75v1zM14.25 1H12V0h4v3.75h-1V1zM12 15h2.25v-1H16v4h-4v-1H12V15zM1 14.25h2.25V15H0v-4h1v3.25z"/></svg></button>
+    </div>
+  </footer>
+</div>
+
+<script id="appData" type="application/json">{"shelves":[{"title":"Home","cards":[{"h":"/playlist/0x5kGp5HlZxdrqXbZkRJo2","t":"TIKTOK SPED UP - SPED UP AUDIOS SONGS","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000d72c24311e48c6e31d2c7cd54a28"},{"h":"/artist/0Y5tJX1MQlPlqiwlOH1tJY","t":"Travis Scott","sub":"","img":"https://i.scdn.co/image/ab6761610000517419c2790744c792d05570bb71"},{"h":"/album/227UvASw9FY7onzeOLuvG9","t":"Acoustic Vibes, Vol. 2","sub":"","img":"https://i.scdn.co/image/ab67616d00001e0234e19f2c29369622ac9a44f7"},{"h":"/artist/1mVyPck7blRB4ZuuMp46QM","t":"Riski Inrahim","sub":"","img":"https://i.scdn.co/image/ab67616100005174cec92a567b8052a7f49830a8"},{"h":"/artist/7ky3mPSQ3ZpfS25XEO4sxl","t":"GACE","sub":"","img":"https://i.scdn.co/image/ab67616100005174cc3d4a3b9d717308ea7b92e2"},{"h":"/playlist/37i9dQZF1E4A1CZ4zmusMj","t":"Lil C.C. Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/4Moq5aBdKJzuZtYUfcyKfr/en"},{"h":"/artist/6eBWguXb1vDcS5rBOMLxos","t":"NO1RLCFR","sub":"","img":"https://i.scdn.co/image/ab67616100005174717560c22f592cb0eb67b045"},{"h":"/album/6pQvrHB1jSqccZPtFWNLrs","t":"Into You","sub":"","img":"https://i.scdn.co/image/ab67616d00001e0298ebea72e8c5ade4afc995c5"},{"h":"/album/2agnnZmpBgRQhV7iLae6fn","t":"AKU GAS!","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02b1b143352e25d474d5aec37e"},{"h":"/artist/4Moq5aBdKJzuZtYUfcyKfr","t":"Lil C.C.","sub":"","img":"https://i.scdn.co/image/ab676161000051748da6672d90837a007fb49e8e"},{"h":"/artist/1hioeMAsVwJ3bvcb9lxBpB","t":"D’MASIV","sub":"","img":"https://i.scdn.co/image/ab67616100005174e60fbad04994ed9a646918f8"},{"h":"/artist/3Gr3opnAGpJiTowsTyJFWG","t":"Denny Caknan","sub":"","img":"https://i.scdn.co/image/ab676161000051748d49920efb5d03a00b834309"}]},{"title":"Jump back in","cards":[{"h":"/playlist/0x5kGp5HlZxdrqXbZkRJo2","t":"TIKTOK SPED UP - SPED UP AUDIOS SONGS","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000d72c24311e48c6e31d2c7cd54a28"},{"h":"/artist/0Y5tJX1MQlPlqiwlOH1tJY","t":"Travis Scott","sub":"","img":"https://i.scdn.co/image/ab6761610000517419c2790744c792d05570bb71"},{"h":"/album/227UvASw9FY7onzeOLuvG9","t":"Acoustic Vibes, Vol. 2","sub":"","img":"https://i.scdn.co/image/ab67616d00001e0234e19f2c29369622ac9a44f7"},{"h":"/artist/1mVyPck7blRB4ZuuMp46QM","t":"Riski Inrahim","sub":"","img":"https://i.scdn.co/image/ab67616100005174cec92a567b8052a7f49830a8"},{"h":"/artist/7ky3mPSQ3ZpfS25XEO4sxl","t":"GACE","sub":"","img":"https://i.scdn.co/image/ab67616100005174cc3d4a3b9d717308ea7b92e2"},{"h":"/playlist/37i9dQZF1E4A1CZ4zmusMj","t":"Lil C.C. Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/4Moq5aBdKJzuZtYUfcyKfr/en"},{"h":"/artist/6eBWguXb1vDcS5rBOMLxos","t":"NO1RLCFR","sub":"","img":"https://i.scdn.co/image/ab67616100005174717560c22f592cb0eb67b045"},{"h":"/album/6pQvrHB1jSqccZPtFWNLrs","t":"Into You","sub":"","img":"https://i.scdn.co/image/ab67616d00001e0298ebea72e8c5ade4afc995c5"},{"h":"/album/2agnnZmpBgRQhV7iLae6fn","t":"AKU GAS!","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02b1b143352e25d474d5aec37e"},{"h":"/artist/4Moq5aBdKJzuZtYUfcyKfr","t":"Lil C.C.","sub":"","img":"https://i.scdn.co/image/ab676161000051748da6672d90837a007fb49e8e"}]},{"title":"Your favorite artists","cards":[{"h":"/artist/1hioeMAsVwJ3bvcb9lxBpB","t":"D’MASIV","sub":"","img":"https://i.scdn.co/image/ab67616100005174e60fbad04994ed9a646918f8"},{"h":"/artist/3Gr3opnAGpJiTowsTyJFWG","t":"Denny Caknan","sub":"","img":"https://i.scdn.co/image/ab676161000051748d49920efb5d03a00b834309"},{"h":"/artist/47z98pKd71yIbgXwe9LPVC","t":"Bernadya","sub":"","img":"https://i.scdn.co/image/ab67616100005174128f966173343498818ae8c6"},{"h":"/artist/4HHdjvdn30koo54zQ6QeF5","t":"Ungu","sub":"","img":"https://i.scdn.co/image/ab67616100005174c50b47762637e0cadef83be6"},{"h":"/artist/3wOsYKZM0zcKNasi3I7fP4","t":"Mahalini","sub":"","img":"https://i.scdn.co/image/ab6761610000517426a4b25e52cf825e21f3d182"},{"h":"/artist/6vP4azTCk053nGL0xAYnVH","t":"Tenxi","sub":"","img":"https://i.scdn.co/image/ab6761610000517429c41392ae281462cbc7f140"},{"h":"/artist/3coxJnIe9n8Uz82x5eSTrv","t":"Yeni Inka","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02dd9794451c7ad5ea898e8a1b"},{"h":"/artist/7dfgbE36R93BxHhCWJrlxo","t":"Itsmeraley","sub":"","img":"https://i.scdn.co/image/ab676161000051740032cdf4de1df6e9fb454626"},{"h":"/artist/62USA8ccl2yj1sSVyqL2LR","t":"Pee Wee Gaskins","sub":"","img":"https://i.scdn.co/image/ab676161000051749e7714320f0253bc0eaf0f1d"},{"h":"/artist/5semN56R6Zmtn436osyPpX","t":"DJ Nakama","sub":"","img":"https://i.scdn.co/image/ab676161000051740c797035ac2b1f0d76131039"}]},{"title":"Recents","cards":[{"h":"/playlist/6nEkgEwmSexT5Te8BgWBTq","t":"new wave","sub":"Playlist • Noir","img":"https://mosaic.scdn.co/300/ab67616d00001e025e8afabc3fc525b967c49a7cab67616d00001e025f7013b5001d648b298e0b5eab67616d00001e026f443e40643429ae30707ddeab67616d00001e02ea185f5344c5f823a0b6589e"},{"h":"/playlist/32jfPFelvHOqLngYiCSkTY","t":"RONDO TINGWE","sub":"Playlist • Noir","img":"https://image-cdn-ak.spotifycdn.com/image/ab67616d0000ab87aadd3b03813f3e93885ba526"},{"h":"/playlist/74y3TP86LF2YqByOE2kJXw","t":"Indo Pop 🫱🏾‍🫲🏻","sub":"Playlist • Noir","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000d72c96bdc0bed7c0870166466156"},{"h":"/playlist/37i9dQZF1DXa2EiKmMLhFD","t":"Hot Hits Indonesia","sub":"Playlist • Spotify","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706f000036f37cc9e7f0910327618d8f15a1"},{"h":"/playlist/0azVraaCT4n3xSY1BGGq7d","t":"Pos Ronda","sub":"Playlist • Noir","img":"https://image-cdn-fa.spotifycdn.com/image/ab67706c0000d72c74efc389ddbcf1024eaf5800"},{"h":"/album/5jLz11m4oVRlwtNzy28KnW","t":"Paranoia","sub":"Album • Crawla","img":"https://image-cdn-ak.spotifycdn.com/image/ab67616d0000ab87c3ba2eeeaa7274253d6f5f95"},{"h":"/artist/3Xz7UxpzEZEfSwF9CtzNYR","t":"Kinderflix","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67616d0000ab8758e4dc1d24deb5ab9f38b2a8"},{"h":"/album/2F19wWKIZKaJJNhe7KGH92","t":"Hate That I Made You Love Me","sub":"Album • Lil C.C.","img":"https://image-cdn-fa.spotifycdn.com/image/ab67616d0000ab8791acf7bc478a919083ad6742"},{"h":"/collection/tracks","t":"Liked Songs","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67616d000090d5e4086e5f9d79cf18ed601015"},{"h":"/album/227UvASw9FY7onzeOLuvG9","t":"Acoustic Vibes, Vol. 2","sub":"Album • NIFANA, JASICA","img":"https://image-cdn-ak.spotifycdn.com/image/ab67616d0000ab8734e19f2c29369622ac9a44f7"},{"h":"/playlist/37i9dQZF1DXcBWIGoYBM5M","t":"Today’s Top Hits","sub":"Playlist • Spotify","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706f000036f3526040498d89ec622e9d3495"},{"h":"/playlist/5FkhmSlY62hrXqE9c15a8L","t":"Edit FL Only","sub":"","img":"https://image-cdn-fa.spotifycdn.com/image/ab67616d000090d540e583b55bdddcf70516fa6c"}]},{"title":"More of what you like","cards":[{"h":"/playlist/37i9dQZF1DWWhB4HOWKFQc","t":"Lagi Viral","sub":"","img":"https://i.scdn.co/image/ab67706f0000000255fe9ec94cd29f4010ebf434"},{"h":"/playlist/37i9dQZF1DXdp5bwJ1FHFe","t":"Rain Sounds for Sleep","sub":"","img":"https://i.scdn.co/image/ab67706f00000002b471f14bb92157300527e6c2"},{"h":"/playlist/37i9dQZF1DWZxM58TRkuqg","t":"Puncak Klasemen","sub":"","img":"https://i.scdn.co/image/ab67706f00000002158846f01d5138a777a8ad53"},{"h":"/playlist/37i9dQZF1DWTweh6R03b2W","t":"Top Indonesian Tracks of 2025","sub":"","img":"https://i.scdn.co/image/ab67706f00000002e18e0e4f9f6e74f2960dce2c"},{"h":"/playlist/37i9dQZF1DXdKj73Pzxb5r","t":"Skena Gres","sub":"","img":"https://i.scdn.co/image/ab67706f000000026f3ba417d0090f7374ece08b"},{"h":"/playlist/37i9dQZF1DX42uh6uEV16q","t":"Top Indonesian Artists of 2025","sub":"","img":"https://i.scdn.co/image/ab67706f000000024023aad22cb2b05b8054b3d3"},{"h":"/playlist/37i9dQZF1DXbfZXE0YeP2Y","t":"Editors' Picks: Best Indonesian Songs of the Year So Far","sub":"","img":"https://i.scdn.co/image/ab67706f000000024f7e41be4873a442eb8502f4"},{"h":"/playlist/37i9dQZF1DXd82NU5rAcTZ","t":"IndieNesia","sub":"","img":"https://i.scdn.co/image/ab67706f00000002dcf18b23a67ca4553374e9a6"},{"h":"/playlist/37i9dQZF1DXat64iiQuzjo","t":"Peluk Diri","sub":"","img":"https://i.scdn.co/image/ab67706f00000002a9fda5758c8b2ae44eddaaf8"}]},{"title":"Soundtrack your Wednesday morning","cards":[{"h":"/playlist/37i9dQZF1EP6YuccBxUcC1","t":"daylist","sub":"","img":"https://daylist.spotifycdn.com/playlist-covers-mix/en/morning_default.jpg"},{"h":"/playlist/37i9dQZF1EIfdXyCbOQndQ","t":"Hopeless Romantic Soft Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Hopeless%20Romantic%20Soft/en/default"},{"h":"/playlist/37i9dQZF1EIgKXhXqo61vc","t":"Chill Study Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Chill%20Study/en/default"},{"h":"/playlist/37i9dQZF1EIdn1BABlgnzi","t":"Yearning Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Yearning/en/default"},{"h":"/playlist/37i9dQZF1EIeSQj5uvW1La","t":"Hopeless Romantic Love Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Hopeless%20Romantic%20Love/en/default"},{"h":"/playlist/37i9dQZF1EIdZrPvCvCkh4","t":"Sad Pop Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Sad%20Pop/en/default"},{"h":"/playlist/37i9dQZF1EId2IRKziWcgn","t":"Comforting Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Comforting/en/default"},{"h":"/playlist/37i9dQZF1EIhxUqurEXGBK","t":"Bath Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Bath/en/default"},{"h":"/playlist/37i9dQZF1EIfAUjCjCWZSL","t":"Heartbroken Sad Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Heartbroken%20Sad/en/default"},{"h":"/playlist/37i9dQZF1EIgQnNDX2DOQP","t":"Quiet Mix","sub":"","img":"https://seed-mix-image.spotifycdn.com/v6/img/desc/Quiet/en/default"}]},{"title":"Recommended for today","cards":[{"h":"/album/5uAcLj2EJLtQtKMyDYCI0Q","t":"MARKERS AND SUCH PENS FLASHDISKS","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02686acaaa87bfc6ebb42b3bd2"},{"h":"/album/6QNFAeSYHkbEuTUtQMhlnC","t":"Nadhif (laman berikutnya)","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02f3e3f888fbfcc916ecce50a9"},{"h":"/album/3XqIOufqMUKfSTpzuz4ok3","t":"iqro'","sub":"","img":"https://i.scdn.co/image/ab67616d00001e022ba1108072a3e8a988d09cc6"},{"h":"/album/25hlG9lEbc2ARvZXY4ZDhv","t":"Sesi Potret","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02172768978c7f929803ad7e8b"},{"h":"/album/0NEaEgFMHQWoy4WDvEk9J3","t":"Merindukanmu","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02f3b57cbbabab69c611d0dece"},{"h":"/album/4bPUtZdWsvU1eTPmJFuvwm","t":"Kisah Klasik Untuk Masa Depan","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02e8d4f0596d66ccbe5241918d"},{"h":"/album/2GKTEV4wdVmeVhNpyHeDav","t":"Bintang di Surga","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02ab48838e59196df92a677275"},{"h":"/album/5Dwl7DzGeKt0iSXXwefCIX","t":"Bahagia Lagi","sub":"","img":"https://i.scdn.co/image/ab67616d00001e025bd00b369e89c5cbc74d827b"},{"h":"/album/2nFXZYwcFX49uehczLGoFM","t":"King of Soundtrack","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02801ab61ae6086d0381265658"},{"h":"/album/0DrZHy9hdQBge6NPOgDqtk","t":"Hati dan Perasaan","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02df45d567bd699d5cac71dbfb"}]},{"title":"Throwback","cards":[{"h":"/playlist/37i9dQZF1DX5Ejj0EkURtP","t":"All Out 2010s","sub":"","img":"https://i.scdn.co/image/ab67706f00000002ddeb90231491c14812b062ff"},{"h":"/playlist/37i9dQZF1DWUaThf8nMdW6","t":"Best of '00s Pop","sub":"","img":"https://i.scdn.co/image/ab67706f0000000278b1ec6a402f086ccff5ac60"},{"h":"/playlist/37i9dQZF1DX7nbWskw2fKF","t":"Terbaik 2000an","sub":"","img":"https://i.scdn.co/image/ab67706f00000002ccbe52c879dac93a9f2be76f"},{"h":"/playlist/37i9dQZF1DX4OzrY981I1W","t":"my life is a movie","sub":"","img":"https://i.scdn.co/image/ab67706f00000002b063c3c335a223fabbf31590"},{"h":"/playlist/37i9dQZF1DWY8wQ1UHaykc","t":"Ngetren di 2010an","sub":"","img":"https://i.scdn.co/image/ab67706f00000002383fe80d44a2f71dd607780b"},{"h":"/playlist/37i9dQZF1DWVTfbQdQ8l7H","t":"10s Love Songs","sub":"","img":"https://i.scdn.co/image/ab67706f0000000252bf65d566df631a2ea5b498"},{"h":"/playlist/37i9dQZF1DX7vYvPxFOesu","t":"Lagu Cengeng","sub":"","img":"https://i.scdn.co/image/ab67706f000000024919073b5b12e57fd32c2089"},{"h":"/playlist/37i9dQZF1DX7a4NCzIrIfF","t":"Nostalgia 90","sub":"","img":"https://i.scdn.co/image/ab67706f000000028bf7f66b8428d3111d0fecd7"},{"h":"/playlist/37i9dQZF1DX2M1RktxUUHG","t":"All Out 2020s","sub":"","img":"https://i.scdn.co/image/ab67706f00000002e0eb2cf6bbb23429b40fba8b"},{"h":"/playlist/37i9dQZF1DXd0DyosUBZQ7","t":"00s Love Songs","sub":"","img":"https://i.scdn.co/image/ab67706f00000002d3e781609a550e462bc247d8"}]},{"title":"Popular radio","cards":[{"h":"/playlist/37i9dQZF1E4spk5CR01gVt","t":"Sheila On 7 Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/6q87vizIEdEN4NvlR6mjfT/en"},{"h":"/playlist/37i9dQZF1E4FogbWgd3kwG","t":"Fourtwnty Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/46cVq2dwPgzPE3X1VR9TMj/en"},{"h":"/playlist/37i9dQZF1E4vTHVDH1FT3Y","t":"Bruno Mars Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/0du5cEVh5yTK9QJze8zA0C/en"},{"h":"/playlist/37i9dQZF1E4wl1mO959ZpH","t":"Bernadya Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/47z98pKd71yIbgXwe9LPVC/en"},{"h":"/playlist/37i9dQZF1E4w3O6xM9VFm2","t":"NIKI Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/2kxP07DLgs4xlWz8YHlvfh/en"},{"h":"/playlist/37i9dQZF1E4tOS1lg4Kdgo","t":"Hindia Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/51kyrUsAVqUBcoDEMFkX12/en"},{"h":"/playlist/37i9dQZF1E4sCva7vLDYh4","t":"Juicy Luicy Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/3tMTXQyRrPmMyHv5SoC0TV/en"},{"h":"/playlist/37i9dQZF1E4nMTmAs0Ai5N","t":"NDX A.K.A. Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/1IDBhlpDyKr53UKKxXRHXD/en"},{"h":"/playlist/37i9dQZF1E4ma7TPKipfQv","t":"Dewa 19 Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/48bKH1ugFBhERC1rdojP9d/en"},{"h":"/playlist/37i9dQZF1E4xUOwfZNuVCq","t":"Mahalini Radio","sub":"","img":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/artist/3wOsYKZM0zcKNasi3I7fP4/en"}]},{"title":"New releases for you","cards":[{"h":"/album/57gdq6aTxriYOnEv8A95yy","t":"Hidupku Sepi Tanpamu","sub":"","img":"https://i.scdn.co/image/ab67616d00001e025a4487197c13ef034513411b"},{"h":"/album/7hh4hDpQzeSy9ViYICkmaX","t":"The Nature of Galaxies","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02f7d57bde13e17adee520f029"},{"h":"/album/3A3EbexOEZ4eWE19teWWI9","t":"Colors x Bags","sub":"","img":"https://i.scdn.co/image/ab67616d00001e029a52897dc32815e92a237a8d"},{"h":"/album/62v7qZ9JSdGYLl6NWNkL41","t":"Terkunci Di Kamu","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02c83a2a5218834d53d1608ac0"},{"h":"/album/12UnBfgRZ5satyhoxiGUsF","t":"dança kompa","sub":"","img":"https://i.scdn.co/image/ab67616d00001e026b3fbf5d6a79640bd85e57f2"},{"h":"/album/3Q5JpUxOrhuB6hUMRyJLzS","t":"I Kissed A Girl x Sam Sulek","sub":"","img":"https://i.scdn.co/image/ab67616d00001e024fdebca4fd4c35ea4cfe2844"},{"h":"/album/0ueqBJk1CM5BtfFvWwTQNZ","t":"I Was Never There x Wicked Games","sub":"","img":"https://i.scdn.co/image/ab67616d00001e024a40e9c1e8fc173160a4df80"},{"h":"/album/5W7GMBgpItMkbwEqQZT9wl","t":"heartstruck","sub":"","img":"https://i.scdn.co/image/ab67616d00001e022fee1284c0ef76c05a34e6bc"},{"h":"/album/5CQ4x0Rr5iSc2o61TFF7Op","t":"R.O.C.K.S.T.A.R.","sub":"","img":"https://i.scdn.co/image/ab67616d00001e024cb6554b367ff75304f136d0"},{"h":"/album/5VRKZGvWEQZRRYooVjKQkv","t":"pop it","sub":"","img":"https://i.scdn.co/image/ab67616d00001e02280adcd77284ed590f9a4d7b"}]},{"title":"Your playlists","cards":[{"h":"/playlist/5FkhmSlY62hrXqE9c15a8L","t":"Edit FL Only","sub":"","img":"https://i.scdn.co/image/ab67616d00001e0240e583b55bdddcf70516fa6c"},{"h":"/playlist/4VnwcLBu2HM7bVKNPMcPqD","t":"Sped Up & Slowed Songs","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000d72c621854be6a38dec120a924e2"},{"h":"/playlist/0ni8KcaaEdDGVvGcrUQUof","t":"noir vibes","sub":"","img":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000d72c40fb56c9ef718d9d773efe00"},{"h":"/playlist/0TU7rqraq3pIl6fn8ElJb9","t":"My top tracks playlist","sub":"","img":"https://mosaic.scdn.co/300/ab67616d00001e022cc727e9c60289b306efa6eaab67616d00001e025f7013b5001d648b298e0b5eab67616d00001e026f443e40643429ae30707ddeab67616d00001e0298b84b6d0f7680fc817a4ba6"},{"h":"/playlist/4BvXedmSwrJc3yYc5yKYnD","t":"My top tracks playlist","sub":"","img":"https://mosaic.scdn.co/300/ab67616d00001e022cc727e9c60289b306efa6eaab67616d00001e025f7013b5001d648b298e0b5eab67616d00001e026f443e40643429ae30707ddeab67616d00001e0298b84b6d0f7680fc817a4ba6"},{"h":"/playlist/7w8BORZcKpPOlW5lVDTLcQ","t":"Ungu Koperasi Best","sub":"","img":"https://mosaic.scdn.co/300/ab67616d00001e0276db3518dda8015865411eb4ab67616d00001e027cfff088f7671523929e60d2ab67616d00001e02ac3dc7cdc2b5798c5e82aa3dab67616d00001e02be7982704b25a460843a308b"}]}]}</script>
+<script>
+(function(){
+  var DATA = JSON.parse(document.getElementById('appData').textContent);
+  var content = document.getElementById('content');
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  DATA.shelves.forEach(function(shelf){
+    if(!shelf.title || !shelf.cards.length) return;
+    var sec = document.createElement('section');
+    sec.className = 'shelf';
+    var cards = shelf.cards.slice(0,10).map(function(c){
+      var art = c.img
+        ? '<img src="'+esc(c.img)+'" alt="" loading="lazy">'
+        : '<div class="ph"></div>';
+      return '<a class="card" href="'+esc(c.h)+'" draggable="false">'
+        + '<div class="card-art">'+art+'<button class="card-play" aria-label="Play '+esc(c.t)+'">'
+        + '<svg viewBox="0 0 24 24"><path d="M7.05 3.606l13.49 7.394a1 1 0 0 1 0 1.745l-13.49 7.394A1 1 0 0 1 5.6 18.346V5.654a1 1 0 0 1 1.45-.894z"/></svg>'
+        + '</button></div>'
+        + '<div class="card-meta"><span class="card-title" title="'+esc(c.t)+'">'+esc(c.t)+'</span>'
+        + '<span class="card-sub">'+esc(c.sub||'')+'</span></div></a>';
+    }).join('');
+    sec.innerHTML = '<div class="shelf-head"><h2>'+esc(shelf.title)+'</h2>'
+      + '<button class="show-all">Show all</button></div>'
+      + '<div class="shelf-cards">'+cards+'</div>';
+    content.appendChild(sec);
+  });
+
+  // library sidebar: first 14 playlist-ish cards from the top shelves
+  var lib = [], seen = {};
+  DATA.shelves.forEach(function(s){ s.cards.forEach(function(c){
+    if(lib.length>=14 || seen[c.h]) return;
+    if(c.h.indexOf('/playlist')===0 || c.h.indexOf('/album')===0){ seen[c.h]=1; lib.push(c); }
+  });});
+  document.getElementById('libList').innerHTML = lib.map(function(c){
+    var art = c.img ? '<img src="'+esc(c.img)+'" alt="">' : '';
+    return '<a class="lib-item" href="'+esc(c.h)+'"><div class="art">'+art+'</div>'
+      + '<div class="meta"><span class="t">'+esc(c.t)+'</span>'
+      + '<span class="s">'+esc(c.h.indexOf('/playlist')===0?'Playlist':'Album')+'</span></div></a>';
+  }).join('');
+
+  // progress bar scrub
+  var bar = document.getElementById('progBar'), fill = document.getElementById('progFill');
+  bar.addEventListener('click', function(e){
+    var r = bar.getBoundingClientRect();
+    fill.style.width = ((e.clientX - r.left) / r.width * 100) + '%';
+  });
+  var vol = document.getElementById('volSlider');
+  vol.addEventListener('click', function(e){
+    var r = vol.getBoundingClientRect();
+    vol.querySelector('.fill').style.width = ((e.clientX - r.left) / r.width * 100) + '%';
+  });
+
+  // play/pause toggle
+  var playing = false, btn = document.getElementById('playBtn');
+  var PLAY = '<svg viewBox="0 0 16 16"><path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.288V1.713z"/></svg>';
+  var PAUSE = '<svg viewBox="0 0 16 16"><path d="M2.7 1a.7.7 0 0 0-.7.7v12.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V1.7a.7.7 0 0 0-.7-.7H2.7zm8 0a.7.7 0 0 0-.7.7v12.6a.7.7 0 0 0 .7.7h2.6a.7.7 0 0 0 .7-.7V1.7a.7.7 0 0 0-.7-.7h-2.6z"/></svg>';
+  btn.addEventListener('click', function(){ playing = !playing; btn.innerHTML = playing ? PAUSE : PLAY;
+    btn.setAttribute('aria-label', playing ? 'Pause' : 'Play'); });
+
+  // card click -> load into now playing bar (demo interactivity)
+  document.addEventListener('click', function(e){
+    var card = e.target.closest('.card'); if(!card) return;
+    e.preventDefault();
+    var t = card.querySelector('.card-title').textContent;
+    document.getElementById('npTitle').textContent = t;
+    var img = card.querySelector('.card-art img');
+    document.getElementById('npArt').innerHTML = img
+      ? '<img src="'+img.getAttribute('src')+'" alt="">' : '';
+  });
+
+  // chip filter (visual only)
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click', function(){
+      document.querySelectorAll('.chip').forEach(function(x){ x.classList.remove('active'); });
+      c.classList.add('active');
+    });
+  });
+})();
+</script>
+</body>
+</html>
